@@ -4,8 +4,19 @@ import { newCycle, rebuildQueue, reshuffleRemaining } from './queue.js';
 
 const $ = (id) => document.getElementById(id);
 const SEGMENT = { reel: 'reel', post: 'p', tv: 'tv' };
-const EMBED_HEADER = 54; // height of the account strip above the video in Instagram's embed
+// Geometry of Instagram's embed page, measured in Nov 2026. For an embed W
+// pixels wide: a 54px account strip, a media box, then a 154px footer. Tall
+// videos sit in a box capped at 1.25 W, pillarboxed to about 0.706 W wide and
+// 1.205 W tall. The embed reports its total height to the parent page in a
+// "MEASURE" message, and sends none at all for removed or private posts.
+const EMBED_HEADER = 54;
+const EMBED_FOOTER = 154;
+const EMBED_BOX = 1.25;
+const EMBED_VIDEO_W = 0.706;
+const EMBED_VIDEO_H = 1.205;
 const LOAD_TIMEOUT_MS = 12000;
+const SIGNAL_WAIT_MS = 3500;
+const DEFAULT_SETTINGS = { crop: true };
 const PRELOAD_DELAY_MS = 1500;
 const DEFAULT_FILTERS = { reel: true, post: false, tv: false, favOnly: false, account: null, collection: null };
 
@@ -15,6 +26,7 @@ const S = {
   hidden: new Set(),
   favs: new Set(),
   filters: { ...DEFAULT_FILTERS },
+  settings: { ...DEFAULT_SETTINGS },
   mode: 'shuffle', // 'shuffle' | 'newest'
   queue: [],
   pos: 0,
@@ -38,6 +50,7 @@ function saveState() {
     hidden: [...S.hidden],
     favs: [...S.favs],
     filters: S.filters,
+    settings: S.settings,
     mode: S.mode,
     queue: S.queue,
     pos: S.pos,
@@ -59,6 +72,7 @@ async function loadAll() {
     S.hidden = new Set(state.hidden || []);
     S.favs = new Set(state.favs || []);
     S.filters = { ...DEFAULT_FILTERS, ...(state.filters || {}) };
+    S.settings = { ...DEFAULT_SETTINGS, ...(state.settings || {}) };
     S.mode = state.mode === 'newest' ? 'newest' : 'shuffle';
     S.queue = (state.queue || []).filter((code) => S.items.has(code));
     S.pos = Math.min(state.pos || 0, Math.max(0, S.queue.length - 1));
@@ -192,15 +206,59 @@ let preloadSlide = null;
 let preloadTimer = null;
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-function layoutStage() {
+// Whether Instagram's embed has ever sent us a MEASURE message. Once it has,
+// an embed that loads without one is treated as unavailable.
+let signalsKnown = false;
+try {
+  signalsKnown = localStorage.getItem('embed-signals') === '1';
+} catch { /* storage unavailable */ }
+
+// Size and position one slide's iframe inside its clip window.
+function layoutSlide(slide) {
   const { width, height } = stage.getBoundingClientRect();
   if (!width || !height) return;
-  const w = Math.max(240, Math.min(width, Math.floor((height - EMBED_HEADER) * 9 / 16)));
-  const h = Math.min(height, Math.round(EMBED_HEADER + (w * 16) / 9));
-  stage.style.setProperty('--reel-w', `${w}px`);
-  stage.style.setProperty('--reel-h', `${h}px`);
-  stage.style.setProperty('--post-w', `${Math.min(width, 480)}px`);
-  stage.style.setProperty('--post-h', `${height}px`);
+  const { clip, iframe } = slide;
+  const isVideo = slide.item.kind !== 'post';
+  let clipW;
+  let clipH;
+  let frameW;
+  let frameH;
+  let left = 0;
+  let top = 0;
+  if (isVideo && slide.tall && S.settings.crop) {
+    // Fill: show only the video, cropping Instagram's strip, bars and footer.
+    const ratio = EMBED_VIDEO_H / EMBED_VIDEO_W;
+    clipW = Math.floor(Math.min(width, height / ratio));
+    clipH = Math.floor(clipW * ratio);
+    frameW = Math.round(clipW / EMBED_VIDEO_W);
+    frameH = EMBED_HEADER + Math.ceil(frameW * EMBED_BOX) + EMBED_FOOTER + 200;
+    left = -Math.round((frameW - clipW) / 2);
+    top = -Math.round(EMBED_HEADER + (frameW * (EMBED_BOX - EMBED_VIDEO_H)) / 2);
+  } else if (isVideo) {
+    // Fit: Instagram's strip and the whole media box, footer cropped.
+    const box = slide.tall ? EMBED_BOX : Math.max(0.5, slide.boxRatio || 1);
+    clipW = Math.floor(Math.max(240, Math.min(width, 540, (height - EMBED_HEADER) / box)));
+    clipH = Math.min(height, Math.round(EMBED_HEADER + clipW * box));
+    frameW = clipW;
+    frameH = clipH + EMBED_FOOTER + 200;
+  } else {
+    // Posts: the whole embed, scrollable, since photos and carousels vary.
+    clipW = Math.floor(Math.min(width, 480));
+    clipH = Math.floor(slide.measured ? Math.min(height, slide.measured) : height);
+    frameW = clipW;
+    frameH = clipH;
+  }
+  clip.style.width = `${clipW}px`;
+  clip.style.height = `${clipH}px`;
+  iframe.style.width = `${frameW}px`;
+  iframe.style.height = `${frameH}px`;
+  iframe.style.left = `${left}px`;
+  iframe.style.top = `${top}px`;
+}
+
+function layoutStage() {
+  if (currentSlide) layoutSlide(currentSlide);
+  if (preloadSlide) layoutSlide(preloadSlide);
 }
 
 function failSlide(slide, reason) {
@@ -210,6 +268,13 @@ function failSlide(slide, reason) {
   slide.el.classList.remove('is-loading', 'is-loaded');
   slide.el.classList.add('is-failed');
   slide.label.textContent = reason;
+}
+
+function markLoaded(slide) {
+  clearTimeout(slide.timer);
+  slide.state = 'loaded';
+  slide.el.classList.remove('is-loading', 'is-failed');
+  slide.el.classList.add('is-loaded');
 }
 
 function loadSlide(slide) {
@@ -226,21 +291,63 @@ function loadSlide(slide) {
   slide.timer = setTimeout(() => failSlide(slide, 'Did not load'), LOAD_TIMEOUT_MS);
 }
 
+// The embed page finished loading. Removed and private posts load fine too
+// (as an Instagram error page), so wait for the MEASURE signal when we know
+// this browser receives them.
+function onFrameLoad(slide) {
+  if (slide.state !== 'loading') return;
+  clearTimeout(slide.timer);
+  if (!signalsKnown) {
+    slide.tall = false;
+    layoutSlide(slide);
+    markLoaded(slide);
+    return;
+  }
+  slide.timer = setTimeout(() => failSlide(slide, 'Not available'), SIGNAL_WAIT_MS);
+}
+
+function onEmbedMessage(event) {
+  if (!/^https:\/\/(www\.)?instagram\.com$/.test(event.origin)) return;
+  const slide = [currentSlide, preloadSlide].find((s) => s && s.iframe.contentWindow === event.source);
+  if (!slide) return;
+  let data = event.data;
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      return;
+    }
+  }
+  const measured = data && data.type === 'MEASURE' && data.details && Number(data.details.height);
+  if (!measured) return;
+  if (!signalsKnown) {
+    signalsKnown = true;
+    try {
+      localStorage.setItem('embed-signals', '1');
+    } catch { /* storage unavailable */ }
+  }
+  const frameW = slide.iframe.getBoundingClientRect().width || 1;
+  slide.measured = measured;
+  slide.boxRatio = (measured - EMBED_HEADER - EMBED_FOOTER) / frameW;
+  const tall = slide.boxRatio > EMBED_BOX - 0.06;
+  if (tall !== slide.tall || slide.item.kind === 'post') {
+    slide.tall = tall;
+    layoutSlide(slide);
+  }
+  if (slide.state === 'loading' || slide.state === 'failed') markLoaded(slide);
+}
+
 function makeSlide(code) {
   const item = S.items.get(code);
   const el = document.createElement('div');
   el.className = `slide kind-${item.kind}`;
   const clip = document.createElement('div');
   clip.className = 'clip';
-  const reel = item.kind !== 'post';
-  clip.style.setProperty('--frame-w', reel ? 'var(--reel-w)' : 'var(--post-w)');
-  clip.style.setProperty('--frame-h', reel ? 'var(--reel-h)' : 'var(--post-h)');
 
   const iframe = document.createElement('iframe');
   iframe.title = item.user ? `Instagram post by ${item.user}` : 'Instagram post';
   iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen; web-share; clipboard-write';
-  iframe.allowFullscreen = true;
-  if (reel) iframe.scrolling = 'no';
+  if (item.kind !== 'post') iframe.scrolling = 'no';
 
   const veil = document.createElement('div');
   veil.className = 'veil';
@@ -261,25 +368,26 @@ function makeSlide(code) {
   skip.className = 'btn';
   skip.type = 'button';
   skip.textContent = 'Skip';
+  const drop = document.createElement('button');
+  drop.className = 'btn';
+  drop.type = 'button';
+  drop.textContent = 'Hide for good';
   const retry = document.createElement('button');
   retry.className = 'btn';
   retry.type = 'button';
   retry.textContent = 'Try again';
-  actions.append(open, skip, retry);
+  actions.append(open, skip, drop, retry);
   veil.append(label, text, actions);
   clip.append(iframe, veil);
   el.append(clip);
 
-  const slide = { code, item, el, iframe, label, state: 'idle', timer: null };
-  iframe.addEventListener('load', () => {
-    if (slide.state !== 'loading') return;
-    clearTimeout(slide.timer);
-    slide.state = 'loaded';
-    slide.el.classList.remove('is-loading');
-    slide.el.classList.add('is-loaded');
-  });
+  // Reels start out assuming a tall video; MEASURE corrects it if not.
+  const slide = { code, item, el, clip, iframe, label, state: 'idle', timer: null, tall: item.kind !== 'post', boxRatio: 0, measured: 0 };
+  iframe.addEventListener('load', () => onFrameLoad(slide));
   skip.addEventListener('click', () => go(1));
+  drop.addEventListener('click', hideCurrent);
   retry.addEventListener('click', () => loadSlide(slide));
+  layoutSlide(slide);
   loadSlide(slide);
   return slide;
 }
@@ -308,6 +416,7 @@ function schedulePreload() {
     preloadSlide = makeSlide(nextCode);
     preloadSlide.el.classList.add('is-preload');
     stage.append(preloadSlide.el);
+    layoutSlide(preloadSlide);
   }, PRELOAD_DELAY_MS);
 }
 
@@ -322,6 +431,7 @@ function showSlide(code, direction) {
     disposePreload();
     slide = makeSlide(code);
     stage.append(slide.el);
+    layoutSlide(slide);
   }
   const old = currentSlide;
   currentSlide = slide;
@@ -519,6 +629,7 @@ function renderDrawer() {
     $(`f-${kind}`).checked = S.filters[kind];
     $(`n-${kind}`).textContent = String(counts[kind]);
   }
+  $('s-crop').checked = S.settings.crop;
   $('f-fav').checked = S.filters.favOnly;
   $('n-fav').textContent = String(fav);
 
@@ -617,6 +728,7 @@ async function clearEverything() {
   S.hidden.clear();
   S.favs.clear();
   S.filters = { ...DEFAULT_FILTERS };
+  S.settings = { ...DEFAULT_SETTINGS };
   S.mode = 'shuffle';
   S.queue = [];
   S.pos = 0;
@@ -799,6 +911,11 @@ function wire() {
     refreshQueue();
     renderDrawer();
   });
+  $('s-crop').addEventListener('change', (event) => {
+    S.settings.crop = event.target.checked;
+    layoutStage();
+    saveSoon();
+  });
   $('account-search').addEventListener('input', () => renderAccounts());
   $('btn-restart').addEventListener('click', () => {
     S.seen.clear();
@@ -879,6 +996,7 @@ function wire() {
     go(event.deltaY > 0 ? 1 : -1);
   }, { passive: true });
 
+  window.addEventListener('message', onEmbedMessage);
   new ResizeObserver(layoutStage).observe(stage);
   window.addEventListener('online', () => {
     if (currentSlide && currentSlide.state === 'failed') loadSlide(currentSlide);

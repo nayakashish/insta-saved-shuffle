@@ -7,8 +7,10 @@ import { fileURLToPath } from 'node:url';
 import { networkInterfaces } from 'node:os';
 
 const ROOT = resolve(fileURLToPath(new URL('./public', import.meta.url)));
-const PORT = Number(process.env.PORT || 5173);
-const HOST = process.env.HOST || '127.0.0.1';
+const PORT = Number(process.env.PORT || 4321);
+// Loopback only by default (both IPv4 and IPv6, so "localhost" always lands
+// here). HOST=0.0.0.0 opens it to the local network, e.g. to try it on a phone.
+const HOSTS = process.env.HOST ? [process.env.HOST] : ['127.0.0.1', '::1'];
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -22,7 +24,7 @@ const TYPES = {
   '.ico': 'image/x-icon',
 };
 
-const server = createServer(async (req, res) => {
+const handler = async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
     let path = normalize(decodeURIComponent(url.pathname));
@@ -43,15 +45,26 @@ const server = createServer(async (req, res) => {
   } catch {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Not found');
   }
-});
+};
 
-server.listen(PORT, HOST, () => {
-  console.log(`Dev site: http://localhost:${PORT}/`);
-  if (HOST === '0.0.0.0') {
-    for (const list of Object.values(networkInterfaces())) {
-      for (const net of list || []) {
-        if (net.family === 'IPv4' && !net.internal) console.log(`On your network: http://${net.address}:${PORT}/`);
-      }
+for (const host of HOSTS) {
+  const server = createServer(handler);
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Port ${PORT} is already in use on ${host}. Try: PORT=4322 npm run dev`);
+      process.exit(1);
+    }
+    if (host === '::1') return; // no IPv6 loopback on this machine
+    throw err;
+  });
+  server.listen(PORT, host);
+}
+
+console.log(`Dev site: http://localhost:${PORT}/`);
+if (HOSTS.includes('0.0.0.0')) {
+  for (const list of Object.values(networkInterfaces())) {
+    for (const net of list || []) {
+      if (net.family === 'IPv4' && !net.internal) console.log(`On your network: http://${net.address}:${PORT}/`);
     }
   }
-});
+}

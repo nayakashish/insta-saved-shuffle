@@ -10,6 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="stylesheet" href="styles.css">
@@ -149,6 +150,11 @@
       <label class="row"><input id="f-post" type="checkbox"><span>Posts <small>some are photos</small></span><span id="n-post" class="num"></span></label>
       <label class="row"><input id="f-tv" type="checkbox"><span>IGTV videos</span><span id="n-tv" class="num"></span></label>
       <label class="row"><input id="f-fav" type="checkbox"><span>Starred only</span><span id="n-fav" class="num"></span></label>
+    </section>
+
+    <section>
+      <h3>Picture</h3>
+      <label class="row"><input id="s-crop" type="checkbox"><span>Fill the frame with the video <small>hides Instagram's bars</small></span></label>
     </section>
 
     <section id="sec-collection" hidden>

@@ -174,6 +174,7 @@ code { font-family: var(--mono); font-size: 0.9em; color: var(--ink-soft); }
   position: fixed;
   inset: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   max-width: 620px;
   margin: 0 auto;
@@ -188,9 +189,9 @@ code { font-family: var(--mono); font-size: 0.9em; color: var(--ink-soft); }
 .topbar {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   padding: var(--safe-top) var(--gutter) 0;
   min-height: calc(48px + var(--safe-top));
 }
@@ -212,13 +213,14 @@ code { font-family: var(--mono); font-size: 0.9em; color: var(--ink-soft); }
 .modes button[aria-pressed="true"] { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
 
 .count {
+  text-align: center;
   font-family: var(--mono);
   font-size: 15px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
-.count-of { margin: 0 7px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-faint); }
+.count-of { margin: 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-faint); }
 #counter-m { color: var(--ink-soft); }
 
 .progress { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--line); }
@@ -229,14 +231,11 @@ code { font-family: var(--mono); font-size: 0.9em; color: var(--ink-soft); }
 .slide.is-preload { visibility: hidden; pointer-events: none; }
 .clip {
   position: relative;
-  width: var(--frame-w, 320px);
-  height: var(--frame-h, 560px);
   overflow: hidden;
-  background: #fff;
+  background: #000;
   border-radius: 3px;
 }
-.clip iframe { display: block; width: 100%; height: calc(var(--frame-h, 560px) + 900px); border: 0; }
-.slide.kind-post .clip iframe { height: 100%; }
+.clip iframe { position: absolute; display: block; border: 0; background: #fff; }
 
 .veil {
   position: absolute;
@@ -279,7 +278,7 @@ code { font-family: var(--mono); font-size: 0.9em; color: var(--ink-soft); }
 .empty .btn { margin-top: 10px; }
 
 .deck { position: relative; border-top: 1px solid var(--line); padding-bottom: var(--safe-bottom); }
-.meta { padding: 10px var(--gutter) 8px; min-height: 62px; }
+.meta { padding: 10px var(--gutter) 8px; min-height: 62px; min-width: 0; }
 .meta-line { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
 .meta-user {
   min-width: 0;
