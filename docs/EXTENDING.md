@@ -5,12 +5,13 @@ Status: notes for later. Nothing here is built.
 ## Where things stand
 
 The app is a static site. Each browser holds one library in IndexedDB under
-two keys (`public/js/store.js`):
+two keys (written by `public/js/state.js` through `public/js/store.js`):
 
 - `items`: the imported saves, `{ code, kind, user, name, caption, savedAt,
   collections[] }`, keyed by Instagram shortcode.
-- `state`: watched / hidden / starred sets, filters, settings, the current
-  queue and position, last import summary.
+- `state`: watched / hidden / starred / unplayable sets, which kinds are
+  included, the current scope (topic, tag, account...), settings, the
+  current queue and position, last import summary.
 
 So "other people using it" already works today in the simplest sense: anyone
 can open the site and import their own export, and their data stays in their
@@ -39,7 +40,7 @@ change.
 
 Namespace the storage keys by profile id (`items:<id>`, `state:<id>`) and add
 a profile switcher. `store.js` is the only module that touches storage, so
-the change is contained there plus a small picker in the Library panel.
+the change is contained there plus a small picker in the Settings panel.
 Existing data migrates into a default profile.
 
 ### Step 3. Accounts and sync (needs a backend)
@@ -123,7 +124,10 @@ the schema.
 
 - Items are keyed by shortcode and merges are idempotent, so re-imports and
   multi-device upserts are the same operation.
-- All persistence goes through `store.js` (`get`, `set`, `clearAll`).
+- All persistence goes through `store.js` (`get`, `set`, `clearAll`), and
+  only `state.js` calls it.
+- Tags and topics are derived from captions on load (`topics.js`), never
+  stored as source data, so a server would not need to hold them.
 - Rotation logic in `queue.js` is pure and takes the eligible set and the
   seen set as inputs, so it does not care where they came from.
 - Flags are plain sets of shortcodes; they need per-entry timestamps before

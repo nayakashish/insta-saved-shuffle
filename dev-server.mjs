@@ -12,23 +12,20 @@ const ROOT = resolve(fileURLToPath(new URL('./public', import.meta.url)));
 const DEFAULT_LIST = resolve(fileURLToPath(new URL('./saved/saved_posts.html', import.meta.url)));
 const PORT = Number(process.env.PORT || 4321);
 // Loopback only by default (both IPv4 and IPv6, so "localhost" always lands
-// here). HOST=0.0.0.0 opens it to the local network, e.g. to try it on a phone.
-// --tailscale adds this machine's Tailscale address (100.64.0.0/10), so the
-// site is reachable from your tailnet but not from the local network.
+// here). HOST=0.0.0.0 opens it to the whole local network.
+// When Tailscale is connected, its address (100.64.0.0/10) is added too, so
+// the site is reachable from your tailnet but not from the local network.
+// --local keeps it to this machine only.
 const HOSTS = process.env.HOST ? [process.env.HOST] : ['127.0.0.1', '::1'];
 let tailscaleIp = null;
-if (process.argv.includes('--tailscale')) {
+if (!process.env.HOST && !process.argv.includes('--local')) {
   for (const list of Object.values(networkInterfaces())) {
     for (const net of list || []) {
       const [a, b] = net.address.split('.').map(Number);
       if (net.family === 'IPv4' && a === 100 && b >= 64 && b <= 127) tailscaleIp = net.address;
     }
   }
-  if (!tailscaleIp) {
-    console.error('No Tailscale address found on this machine. Is Tailscale connected?');
-    process.exit(1);
-  }
-  HOSTS.push(tailscaleIp);
+  if (tailscaleIp) HOSTS.push(tailscaleIp);
 }
 
 const TYPES = {

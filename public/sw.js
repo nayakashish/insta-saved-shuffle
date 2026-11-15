@@ -1,16 +1,28 @@
 // App-shell cache so the page opens offline and can be installed. Network
 // first, so a new deploy (or a dev edit) always wins when online. Instagram
 // embeds are cross-origin and never touched here.
-const CACHE = 'saved-shuffle-v2';
+const CACHE = 'saved-shuffle-v3';
 const SHELL = [
   './',
   'index.html',
   'styles.css',
   'js/app.js',
+  'js/events.js',
+  'js/library.js',
   'js/parser.js',
+  'js/player.js',
   'js/queue.js',
+  'js/rotation.js',
+  'js/state.js',
   'js/store.js',
+  'js/topics.js',
   'js/zip.js',
+  'js/ui/dom.js',
+  'js/ui/home.js',
+  'js/ui/importer.js',
+  'js/ui/settings.js',
+  'js/ui/toast.js',
+  'js/ui/watch.js',
   'manifest.webmanifest',
   'icons/icon.svg',
   'icons/icon-192.png',
