@@ -227,8 +227,37 @@ code { font-family: var(--mono); font-size: 0.9em; color: var(--ink-soft); }
 #progress-fill { height: 3px; margin-top: -1px; width: 0; background: var(--accent); transition: width 0.3s ease; }
 
 .stage { position: relative; overflow: hidden; }
-.slide { position: absolute; inset: 0; display: grid; place-items: center; }
+.slide { position: absolute; inset: 0; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; }
 .slide.is-preload { visibility: hidden; pointer-events: none; }
+.stage.has-peek .slide { bottom: var(--peek, 0px); }
+/* Up-next strip: the next reel at full size, seen through a short window
+   centred on its play button. */
+.stage.has-peek .slide.is-peek {
+  top: auto;
+  bottom: 0;
+  height: var(--peek);
+  overflow: hidden;
+  border-top: 1px solid var(--line);
+}
+.slide.is-peek .pad, .slide.is-peek .veil-text, .slide.is-peek .veil-actions { display: none; }
+.peek-tag { display: none; }
+.slide.is-peek.is-loaded .peek-tag {
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 4px 8px;
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+  pointer-events: none;
+  z-index: 3;
+}
 .clip {
   position: relative;
   overflow: hidden;

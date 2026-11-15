@@ -16,7 +16,8 @@ const EMBED_VIDEO_W = 0.706;
 const EMBED_VIDEO_H = 1.205;
 const LOAD_TIMEOUT_MS = 12000;
 const SIGNAL_WAIT_MS = 3500;
-const DEFAULT_SETTINGS = { crop: true };
+const DEFAULT_SETTINGS = { crop: true, peek: true };
+const PEEK_HEIGHT = 92; // height of the "up next" tap strip under the video
 const PRELOAD_DELAY_MS = 1500;
 const DEFAULT_FILTERS = { reel: true, post: false, tv: false, favOnly: false, account: null, collection: null };
 
@@ -218,8 +219,13 @@ try {
 
 // Size and position one slide's iframe inside its clip window.
 function layoutSlide(slide) {
-  const { width, height } = stage.getBoundingClientRect();
-  if (!width || !height) return;
+  const rect = stage.getBoundingClientRect();
+  const width = rect.width;
+  // The up-next strip takes its height off the bottom of the stage. The
+  // next slide is laid out at full size behind that strip, so promoting it
+  // does not resize (and re-render) its embed.
+  const height = rect.height - (S.settings.peek ? PEEK_HEIGHT : 0);
+  if (!width || height <= 0) return;
   const { clip, iframe } = slide;
   const isVideo = slide.item.kind !== 'post';
   let clipW;
@@ -381,6 +387,9 @@ function makeSlide(code) {
   retry.textContent = 'Try again';
   actions.append(open, skip, drop, retry);
   veil.append(label, text, actions);
+  const tag = document.createElement('div');
+  tag.className = 'peek-tag';
+  tag.textContent = 'Up next: tap to play';
   // Transparent strips over the top and bottom thirds of a video: the
   // iframe would swallow touches, these let a swipe there change reel. The
   // middle stays Instagram's, so a tap there plays or pauses.
@@ -398,6 +407,7 @@ function makeSlide(code) {
     }
   }
   clip.append(iframe, ...pads, veil);
+  el.append(tag);
   el.append(clip);
 
   // Reels start out assuming a tall video; MEASURE corrects it if not.
@@ -433,10 +443,25 @@ function schedulePreload() {
   preloadTimer = setTimeout(() => {
     if (S.queue[S.pos + 1] !== nextCode || preloadSlide) return;
     preloadSlide = makeSlide(nextCode);
-    preloadSlide.el.classList.add('is-preload');
+    preloadSlide.el.classList.add(S.settings.peek ? 'is-peek' : 'is-preload');
     stage.append(preloadSlide.el);
     layoutSlide(preloadSlide);
   }, PRELOAD_DELAY_MS);
+}
+
+// Up-next strip: a tap on it lands inside the next reel's embed, which
+// starts it playing. The page cannot see that tap, but focus moves into that
+// iframe, so watch for that and bring the reel on screen.
+function checkPeekTap() {
+  if (!S.settings.peek || !preloadSlide || drawer.hidden === false) return;
+  if (document.activeElement !== preloadSlide.iframe) return;
+  if (preloadSlide.state !== 'loaded' || S.queue[S.pos + 1] !== preloadSlide.code) return;
+  go(1);
+}
+
+function applyPeekSetting() {
+  stage.classList.toggle('has-peek', S.settings.peek);
+  stage.style.setProperty('--peek', `${PEEK_HEIGHT}px`);
 }
 
 function showSlide(code, direction) {
@@ -445,7 +470,7 @@ function showSlide(code, direction) {
     slide = preloadSlide;
     preloadSlide = null;
     clearTimeout(preloadTimer);
-    slide.el.classList.remove('is-preload');
+    slide.el.classList.remove('is-preload', 'is-peek');
   } else {
     disposePreload();
     slide = makeSlide(code);
@@ -649,6 +674,7 @@ function renderDrawer() {
     $(`n-${kind}`).textContent = String(counts[kind]);
   }
   $('s-crop').checked = S.settings.crop;
+  $('s-peek').checked = S.settings.peek;
   $('f-fav').checked = S.filters.favOnly;
   $('n-fav').textContent = String(fav);
 
@@ -792,6 +818,7 @@ function showImport() {
 }
 
 function showPlayer() {
+  applyPeekSetting();
   $('view-import').hidden = true;
   $('view-player').hidden = false;
   layoutStage();
@@ -959,6 +986,16 @@ function wire() {
     refreshQueue();
     renderDrawer();
   });
+  $('s-peek').addEventListener('change', (event) => {
+    S.settings.peek = event.target.checked;
+    applyPeekSetting();
+    disposePreload();
+    layoutStage();
+    schedulePreload();
+    saveSoon();
+  });
+  window.addEventListener('blur', () => setTimeout(checkPeekTap, 0));
+  setInterval(checkPeekTap, 250);
   $('s-crop').addEventListener('change', (event) => {
     S.settings.crop = event.target.checked;
     layoutStage();

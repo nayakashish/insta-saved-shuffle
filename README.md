@@ -85,10 +85,17 @@ inline; a nonexistent shortcode was correctly flagged as unavailable.
 
 ## Limitations found
 
-- **One tap to play.** Instagram's embed does not autoplay; each reel starts
-  on the first tap or click. Sound follows the embed's own control. There is
-  no way to autoplay or auto-advance, because the embed exposes no playback
-  events to the host page.
+- **No autoplay.** Instagram's embed does not autoplay and accepts no
+  autoplay parameter (several were tried); a page cannot start playback
+  inside it. Each reel needs one tap. There is no auto-advance either,
+  because the embed exposes no playback events.
+- **Up-next strip.** To avoid swipe-then-tap, a strip under the video shows
+  a slice of the next reel. A tap on it lands in that reel's embed and starts
+  it; the page notices focus moving into that iframe and brings the reel on
+  screen. Verified in Chrome with emulated touch, not on iOS/iPadOS Safari,
+  where focus reporting for iframes is less dependable. If a tap there
+  starts sound without the reel coming up, turn the strip off in the Library
+  panel.
 - **Swiping over the video uses overlay strips.** A cross-origin iframe
   swallows touches, so transparent strips cover the top and bottom thirds of
   the video to catch swipes. The middle third is Instagram's: tap there to
