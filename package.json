@@ -6,6 +6,7 @@
   "description": "Client-side shuffled viewer for your own Instagram saved reels, fed by the official data export.",
   "scripts": {
     "dev": "node dev-server.mjs",
+    "dev:ts": "node dev-server.mjs",
     "dev:local": "node dev-server.mjs --local",
     "dev:lan": "HOST=0.0.0.0 node dev-server.mjs",
     "test": "node --test"
