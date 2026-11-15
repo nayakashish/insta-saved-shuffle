@@ -7,6 +7,6 @@
   "scripts": {
     "dev": "node dev-server.mjs",
     "dev:lan": "HOST=0.0.0.0 node dev-server.mjs",
-    "test": "node --test test/"
+    "test": "node --test"
   }
 }
