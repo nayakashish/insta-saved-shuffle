@@ -237,9 +237,15 @@ code { font-family: var(--mono); font-size: 0.9em; color: var(--ink-soft); }
 }
 .clip iframe { position: absolute; display: block; border: 0; background: #fff; }
 
+.pad { position: absolute; left: 0; right: 0; height: 34%; z-index: 1; touch-action: none; }
+.pad-top { top: 0; }
+.pad-bottom { bottom: 0; }
+.slide.is-through .pad { pointer-events: none; }
+
 .veil {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: grid;
   place-content: center;
   justify-items: center;

@@ -11,15 +11,21 @@ No backend, no login, no Instagram API, no scraping.
 
 ```
 npm run dev        # http://localhost:4321/
-npm run dev:lan    # also reachable from a phone on the same network
+npm run dev:ts     # localhost plus this machine's Tailscale address
+npm run dev:lan    # every interface, including the local network
 npm test           # shuffle / rotation logic
 ```
 
 There is nothing to build and no dependencies. `public/` is the whole site;
 deploy that folder to any static host.
 
-The dev server only serves `public/`, so the private `saved/` export folder
-(git-ignored) is never reachable over HTTP.
+**Default list.** If `saved/saved_posts.html` exists, the dev server exposes
+that one file at `/default/saved_posts.html` and the site loads it on a first
+visit, so it opens straight into the player with no import step. Anyone who
+can reach the server can read that list. A visitor who imports their own
+export replaces it in their browser. Nothing else in `saved/` is served, the
+folder stays git-ignored, and a static deploy of `public/` has no default
+list and starts on the import screen.
 
 ## Importing your saves
 
@@ -83,10 +89,12 @@ inline; a nonexistent shortcode was correctly flagged as unavailable.
   on the first tap or click. Sound follows the embed's own control. There is
   no way to autoplay or auto-advance, because the embed exposes no playback
   events to the host page.
-- **Swipes over the video go to Instagram.** A cross-origin iframe swallows
-  touches, so swiping works on the bars above and below the video and in the
-  margins beside it. Likewise, after clicking into the video the keyboard
-  belongs to the embed until you click outside it.
+- **Swiping over the video uses overlay strips.** A cross-origin iframe
+  swallows touches, so transparent strips cover the top and bottom thirds of
+  the video to catch swipes. The middle third is Instagram's: tap there to
+  play or pause. A tap on a strip lets the next tap through for four seconds,
+  for controls Instagram puts near the edges. After clicking into the video
+  the keyboard belongs to the embed until you click outside it.
 - **Cropping is based on measurement, not an API.** "Fill the frame" crops
   Instagram's header, footer and side bars using geometry measured from the
   embed page (constants at the top of `js/app.js`). Depending on a video's

@@ -1,7 +1,7 @@
 // App-shell cache so the page opens offline and can be installed. Network
 // first, so a new deploy (or a dev edit) always wins when online. Instagram
 // embeds are cross-origin and never touched here.
-const CACHE = 'saved-shuffle-v1';
+const CACHE = 'saved-shuffle-v2';
 const SHELL = [
   './',
   'index.html',
@@ -31,7 +31,9 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
+  const url = new URL(request.url);
+  // The bundled default list is personal data: never copy it into the cache.
+  if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.includes('/default/')) return;
   event.respondWith(
     fetch(request)
       .then((response) => {

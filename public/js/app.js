@@ -1,4 +1,4 @@
-import { parseFiles, mergeEntries } from './parser.js';
+import { parseFiles, parseText, mergeEntries } from './parser.js';
 import * as store from './store.js';
 import { newCycle, rebuildQueue, reshuffleRemaining } from './queue.js';
 
@@ -33,6 +33,7 @@ const S = {
   shuffleStash: null, // shuffle queue kept while browsing newest-first
   newestCode: null, // where newest-first browsing left off
   lastImport: null,
+  isDefault: false, // library is the list bundled with this copy of the site
 };
 
 const permalink = (item) => `https://www.instagram.com/${SEGMENT[item.kind]}/${item.code}/`;
@@ -57,6 +58,7 @@ function saveState() {
     shuffleStash: S.shuffleStash,
     newestCode: S.newestCode,
     lastImport: S.lastImport,
+    isDefault: S.isDefault,
   });
 }
 
@@ -80,6 +82,7 @@ async function loadAll() {
     S.shuffleStash = state.shuffleStash || null;
     S.newestCode = state.newestCode || null;
     S.lastImport = state.lastImport || null;
+    S.isDefault = Boolean(state.isDefault);
   }
 }
 
@@ -378,7 +381,23 @@ function makeSlide(code) {
   retry.textContent = 'Try again';
   actions.append(open, skip, drop, retry);
   veil.append(label, text, actions);
-  clip.append(iframe, veil);
+  // Transparent strips over the top and bottom thirds of a video: the
+  // iframe would swallow touches, these let a swipe there change reel. The
+  // middle stays Instagram's, so a tap there plays or pauses.
+  const pads = [];
+  if (item.kind !== 'post') {
+    for (const edge of ['top', 'bottom']) {
+      const pad = document.createElement('div');
+      pad.className = `pad pad-${edge}`;
+      pad.addEventListener('click', () => {
+        el.classList.add('is-through');
+        setTimeout(() => el.classList.remove('is-through'), 4000);
+        toast('Tap again to reach Instagram\'s controls there.');
+      });
+      pads.push(pad);
+    }
+  }
+  clip.append(iframe, ...pads, veil);
   el.append(clip);
 
   // Reels start out assuming a tall video; MEASURE corrects it if not.
@@ -662,7 +681,9 @@ function renderDrawer() {
   restore.textContent = `Restore ${S.hidden.size} hidden`;
 
   const last = S.lastImport;
-  $('last-import').textContent = last
+  $('last-import').textContent = S.isDefault
+    ? `Showing the ${S.items.size} saves that come with this copy of the site. Import your own to replace them.`
+    : last
     ? `Last import ${dateFormat.format(last.at)}: ${last.links} links, ${last.unique} unique, ${last.added} new.`
     : 'No import recorded yet.';
   $('storage-warning').hidden = store.isPersistent();
@@ -735,6 +756,10 @@ async function clearEverything() {
   S.shuffleStash = null;
   S.newestCode = null;
   S.lastImport = null;
+  S.isDefault = false;
+  try {
+    localStorage.setItem('skip-default', '1');
+  } catch { /* storage unavailable */ }
   disposePreload();
   disposeSlide(currentSlide);
   currentSlide = null;
@@ -753,10 +778,14 @@ function showImport() {
   $('import-report').hidden = true;
   $('btn-back').hidden = !hasLibrary;
   setStatus('');
-  $('import-title').textContent = hasLibrary
+  $('import-title').textContent = S.isDefault
+    ? 'Import your own saves.'
+    : hasLibrary
     ? 'Bring in a newer export.'
     : 'Your saved reels, in an order you did not pick.';
-  $('import-lede').textContent = hasLibrary
+  $('import-lede').textContent = S.isDefault
+    ? 'You are watching the list that comes with this copy of the site. Import your own Instagram export and it replaces that list in this browser.'
+    : hasLibrary
     ? `You have ${S.items.size} saved items here. Import a fresh export and anything new is added; what you have watched, hidden or starred is left alone.`
     : 'Instagram keeps your saves in one long list you never scroll back through. Hand this page your own data export and it deals them out at random, or newest first, one at a time.';
   window.scrollTo(0, 0);
@@ -823,6 +852,22 @@ async function importFiles(fileList) {
   setStatus(`Reading ${files.length === 1 ? files[0].name : `${files.length} files`}...`);
   try {
     const parsed = await parseFiles(files);
+    // Someone importing their own export replaces the bundled list outright.
+    if (S.isDefault && parsed.entries.length > 0) {
+      S.items.clear();
+      S.seen.clear();
+      S.hidden.clear();
+      S.favs.clear();
+      S.filters = { ...DEFAULT_FILTERS };
+      S.queue = [];
+      S.pos = 0;
+      S.shuffleStash = null;
+      S.newestCode = null;
+      S.isDefault = false;
+      disposePreload();
+      disposeSlide(currentSlide);
+      currentSlide = null;
+    }
     const stats = mergeEntries(S.items, parsed.entries);
     if (stats.links === 0) {
       const firstError = parsed.files.find((file) => file.error);
@@ -834,6 +879,9 @@ async function importFiles(fileList) {
     await saveState();
     renderReport(stats, parsed.files);
     $('btn-start').textContent = stats.added === S.items.size ? 'Start watching' : 'Back to the player';
+    try {
+      localStorage.removeItem('skip-default');
+    } catch { /* storage unavailable */ }
     $('btn-back').hidden = true;
     setStatus(stored ? 'Done. Stored in this browser only.' : 'Done, but this browser would not store it; it will be gone when the tab closes.', !stored);
     $('import-report').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -1024,9 +1072,28 @@ function wire() {
   });
 }
 
+// First visit with nothing stored: use the list this copy of the site ships
+// with, if there is one at default/saved_posts.html.
+async function loadDefaultList() {
+  try {
+    if (localStorage.getItem('skip-default') === '1') return;
+  } catch { /* storage unavailable */ }
+  try {
+    const response = await fetch('default/saved_posts.html', { cache: 'no-store' });
+    if (!response.ok) return;
+    const stats = mergeEntries(S.items, parseText(await response.text()));
+    if (stats.unique === 0) return;
+    S.isDefault = true;
+    S.lastImport = { at: Date.now(), links: stats.links, unique: stats.unique, added: stats.added };
+    await store.set('items', [...S.items.values()]);
+    await saveState();
+  } catch { /* no bundled list; fall through to the import screen */ }
+}
+
 async function init() {
   wire();
   await loadAll();
+  if (S.items.size === 0) await loadDefaultList();
   if (S.items.size > 0) showPlayer();
   else showImport();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
