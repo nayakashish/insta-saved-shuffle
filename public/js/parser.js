@@ -83,9 +83,14 @@ export function parseHtml(source) {
       entry.user = (owner && labelValue(owner, 'Username')) || labelValue(table, 'Username');
       entry.name = owner ? labelValue(owner, 'Name') : null;
       entry.caption = labelValue(table, 'Caption', table);
-      const outer = table.parentElement ? table.parentElement.closest('table') : null;
+      // Collections wrap each post in one or more outer tables; the one that
+      // owns a "Name" row is the collection itself.
+      let outer = table.parentElement ? table.parentElement.closest('table') : null;
       if (outer) {
-        const collection = labelValue(outer, 'Name', outer);
+        let collection = null;
+        for (; outer && !collection; outer = outer.parentElement ? outer.parentElement.closest('table') : null) {
+          collection = labelValue(outer, 'Name', outer);
+        }
         if (collection) entry.collections.push(collection);
       } else {
         entry.savedAt = savedDateNear(table, stopAt);
