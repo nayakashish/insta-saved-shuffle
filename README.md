@@ -7,6 +7,10 @@ player.
 
 No backend, no login, no Instagram API, no scraping.
 
+![Start page: counts, continue / shuffle / newest, and topics](docs/screenshots/start-page.png)
+
+![Import page: drop the export, how to get it, where the data goes](docs/screenshots/import.png)
+
 ## Run it
 
 ```
