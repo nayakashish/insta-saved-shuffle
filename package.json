@@ -1,0 +1,12 @@
+{
+  "name": "shuffled-saved-reels",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Client-side shuffled viewer for your own Instagram saved reels, fed by the official data export.",
+  "scripts": {
+    "dev": "node dev-server.mjs",
+    "dev:lan": "HOST=0.0.0.0 node dev-server.mjs",
+    "test": "node --test test/"
+  }
+}
