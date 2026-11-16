@@ -55,7 +55,7 @@ const CSP = [
   "worker-src 'self'",
   "manifest-src 'self'",
   "object-src 'none'",
-  "base-uri 'none'",
+  "base-uri 'self'",
   "form-action 'none'",
   "frame-ancestors 'none'",
 ].join('; ');
