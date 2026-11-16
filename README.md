@@ -20,6 +20,10 @@ npm run dev:lan     # every interface, including the local network
 npm test            # pure-logic tests
 ```
 
+**Deploy on a server with Docker:** `docker compose up -d --build`, then
+open `http://<server>:4321/`. See `docs/DEPLOY.md` for the optional
+preloaded list, limiting who can reach it, and HTTPS.
+
 There is nothing to build and no dependencies. `public/` is the whole site;
 deploy that folder to any static host.
 
@@ -69,6 +73,7 @@ Instagram shortcode.
 
 - `docs/ARCHITECTURE.md`: modules, state, how rotation, the player and
   topics work.
+- `docs/DEPLOY.md`: Docker deployment.
 - `docs/PRIVACY.md`: what is stored, what leaves the device, the default
   list.
 - `docs/EXTENDING.md`: adding accounts and sync later.

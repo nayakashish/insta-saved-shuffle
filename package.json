@@ -5,10 +5,13 @@
   "type": "module",
   "description": "Client-side shuffled viewer for your own Instagram saved reels, fed by the official data export.",
   "scripts": {
-    "dev": "node dev-server.mjs",
-    "dev:ts": "node dev-server.mjs",
-    "dev:local": "node dev-server.mjs --local",
-    "dev:lan": "HOST=0.0.0.0 node dev-server.mjs",
-    "test": "node --test"
+    "dev": "node server.mjs",
+    "dev:ts": "node server.mjs",
+    "dev:local": "node server.mjs --local",
+    "dev:lan": "HOST=0.0.0.0 node server.mjs",
+    "test": "node --test",
+    "start": "HOST=0.0.0.0 node server.mjs",
+    "docker:build": "docker build -t saved-shuffle .",
+    "docker:up": "docker compose up -d --build"
   }
 }

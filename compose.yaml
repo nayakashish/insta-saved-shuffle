@@ -1,0 +1,19 @@
+services:
+  saved-shuffle:
+    build: .
+    image: saved-shuffle:latest
+    container_name: saved-shuffle
+    restart: unless-stopped
+    ports:
+      # Host port : container port. To keep it off the public internet, bind
+      # to one address, e.g. "127.0.0.1:4321:4321" behind a reverse proxy, or
+      # "<tailscale-ip>:4321:4321" for your tailnet only.
+      - "4321:4321"
+    # Optional: preload a saved list so visitors skip the import step.
+    # Anyone who can reach the site can download this file.
+    # volumes:
+    #   - ./saved/saved_posts.html:/app/saved/saved_posts.html:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true

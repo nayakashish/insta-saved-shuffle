@@ -30,7 +30,7 @@ public/
       importer.js       import view
       toast.js          transient messages
 test/                   node:test suites for the pure modules
-dev-server.mjs          static dev server
+server.mjs          static server (dev and Docker)
 ```
 
 ## Layers

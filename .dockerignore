@@ -1,0 +1,6 @@
+# Allow-list: only what the image needs. In particular the private saved/
+# export folder must never be copied into an image.
+*
+!package.json
+!server.mjs
+!public
