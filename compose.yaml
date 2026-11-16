@@ -1,7 +1,6 @@
 services:
   saved-shuffle:
     build: .
-    image: saved-shuffle:latest
     container_name: saved-shuffle
     restart: unless-stopped
     ports:
